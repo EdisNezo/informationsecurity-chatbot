@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pydantic
+langchain
+faiss-cpu
+jinja2
+numpy
+python-dotenv
+requests

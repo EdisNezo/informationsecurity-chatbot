@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Informationssicherheit Skriptgenerator</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        background-color: #f8f9fa;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+      .chat-container {
+        max-width: 800px;
+        margin: 2rem auto;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+      }
+      .chat-header {
+        background-color: #06b6d4;
+        color: white;
+        padding: 1rem;
+        text-align: center;
+      }
+      .chat-messages {
+        height: 400px;
+        overflow-y: auto;
+        padding: 1rem;
+        background-color: white;
+      }
+      .message {
+        margin-bottom: 1rem;
+        padding: 0.75rem;
+        border-radius: 8px;
+        max-width: 80%;
+      }
+      .user-message {
+        background-color: #e2f8ff;
+        margin-left: auto;
+      }
+      .bot-message {
+        background-color: #f0f0f0;
+        margin-right: auto;
+      }
+      .chat-input {
+        padding: 1rem;
+        background-color: #f8f9fa;
+        border-top: 1px solid #ddd;
+      }
+      .script-container {
+        margin-top: 2rem;
+        padding: 1.5rem;
+        background-color: white;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+      }
+      #scriptContent {
+        white-space: pre-wrap;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.6;
+      }
+      .loading {
+        display: inline-block;
+        width: 20px;
+        height: 20px;
+        border: 3px solid rgba(0, 0, 0, 0.1);
+        border-radius: 50%;
+        border-top-color: #06b6d4;
+        animation: spin 1s ease-in-out infinite;
+        margin-left: 10px;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container py-4">
+      <div class="text-center mb-4">
+        <h1>Informationssicherheits-Skriptgenerator</h1>
+        <p class="lead">
+          Erstellen Sie maßgeschneiderte Schulungsskripte für
+          Informationssicherheit im Gesundheitswesen
+        </p>
+      </div>
+
+      <div class="chat-container">
+        <div class="chat-header">
+          <h5 class="mb-0">Chatbot-Assistent</h5>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+          <!-- Messages will be added here -->
+        </div>
+        <div class="chat-input">
+          <div class="input-group">
+            <input
+              type="text"
+              id="userInput"
+              class="form-control"
+              placeholder="Ihre Antwort eingeben..."
+            />
+            <button class="btn btn-primary" id="sendButton" type="button">
+              Senden
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="script-container" id="scriptContainer" style="display: none">
+        <h3>Ihr generiertes Skript</h3>
+        <div class="d-flex justify-content-end mb-3">
+          <button class="btn btn-outline-primary btn-sm me-2" id="copyButton">
+            Kopieren
+          </button>
+          <button class="btn btn-outline-primary btn-sm" id="downloadButton">
+            Herunterladen
+          </button>
+        </div>
+        <div id="scriptContent" class="p-3 border rounded">
+          <!-- Generated script will be shown here -->
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const chatMessages = document.getElementById("chatMessages");
+      const userInput = document.getElementById("userInput");
+      const sendButton = document.getElementById("sendButton");
+      const scriptContainer = document.getElementById("scriptContainer");
+      const scriptContent = document.getElementById("scriptContent");
+      const copyButton = document.getElementById("copyButton");
+      const downloadButton = document.getElementById("downloadButton");
+
+      let conversationId = null;
+      let generatingScript = false;
+
+      // Initialize the conversation
+      window.onload = function () {
+        startConversation();
+      };
+
+      // Start a new conversation
+      function startConversation() {
+        fetch("/api/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: "",
+            conversation_id: null,
+          }),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            conversationId = data.conversation_id;
+            addBotMessage(data.message);
+          })
+          .catch((error) => {
+            console.error("Error starting conversation:", error);
+          });
+      }
+
+      // Send a message
+      function sendMessage() {
+        const message = userInput.value.trim();
+        if (!message) return;
+
+        // Add user message to chat
+        addUserMessage(message);
+        userInput.value = "";
+
+        // Disable input while waiting for response
+        userInput.disabled = true;
+        sendButton.disabled = true;
+
+        fetch("/api/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            message: message,
+            conversation_id: conversationId,
+          }),
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            addBotMessage(data.message);
+            conversationId = data.conversation_id;
+
+            // Enable input
+            userInput.disabled = false;
+            sendButton.disabled = false;
+            userInput.focus();
+
+            // Check if script is generating
+            if (data.state === "generating_script") {
+              generatingScript = true;
+              checkScriptStatus();
+            }
+
+            // If script is ready, display it
+            if (data.script) {
+              displayScript(data.script);
+            }
+          })
+          .catch((error) => {
+            console.error("Error sending message:", error);
+            userInput.disabled = false;
+            sendButton.disabled = false;
+          });
+      }
+
+      // Check script generation status
+      function checkScriptStatus() {
+        if (!generatingScript) return;
+
+        // Check status every 3 seconds
+        setTimeout(() => {
+          fetch(`/api/script/${conversationId}`)
+            .then((response) => response.json())
+            .then((data) => {
+              if (data.status === "complete") {
+                generatingScript = false;
+                displayScript(data.script);
+                addBotMessage(
+                  "Ihr Schulungsskript wurde erstellt! Sie können es unten einsehen, kopieren oder herunterladen."
+                );
+              } else {
+                // Continue checking
+                checkScriptStatus();
+              }
+            })
+            .catch((error) => {
+              console.error("Error checking script status:", error);
+              generatingScript = false;
+            });
+        }, 3000);
+      }
+
+      // Display the generated script
+      function displayScript(script) {
+        scriptContent.textContent = script;
+        scriptContainer.style.display = "block";
+        // Scroll to script container
+        scriptContainer.scrollIntoView({ behavior: "smooth" });
+      }
+
+      // Add a user message to the chat
+      function addUserMessage(message) {
+        const messageElement = document.createElement("div");
+        messageElement.className = "message user-message";
+        messageElement.textContent = message;
+        chatMessages.appendChild(messageElement);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      // Add a bot message to the chat
+      function addBotMessage(message) {
+        const messageElement = document.createElement("div");
+        messageElement.className = "message bot-message";
+        messageElement.textContent = message;
+        chatMessages.appendChild(messageElement);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      // Event listeners
+      sendButton.addEventListener("click", sendMessage);
+      userInput.addEventListener("keypress", function (e) {
+        if (e.key === "Enter") {
+          sendMessage();
+        }
+      });
+
+      // Copy script to clipboard
+      copyButton.addEventListener("click", function () {
+        navigator.clipboard
+          .writeText(scriptContent.textContent)
+          .then(() => {
+            alert("Skript wurde in die Zwischenablage kopiert!");
+          })
+          .catch((err) => {
+            console.error("Fehler beim Kopieren: ", err);
+          });
+      });
+
+      // Download script as text file
+      downloadButton.addEventListener("click", function () {
+        const blob = new Blob([scriptContent.textContent], {
+          type: "text/plain",
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "Informationssicherheits-Skript.txt";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    </script>
+  </body>
+</html>
