@@ -78,6 +78,23 @@
           transform: rotate(360deg);
         }
       }
+      .progress-indicator {
+        text-align: center;
+        margin: 1rem 0;
+        padding: 0.5rem;
+        background-color: #e2f8ff;
+        border-radius: 5px;
+        display: none;
+      }
+      .error-message {
+        color: #dc3545;
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        padding: 0.5rem;
+        border-radius: 5px;
+        margin-top: 1rem;
+        display: none;
+      }
     </style>
   </head>
   <body>
@@ -97,6 +114,12 @@
         <div class="chat-messages" id="chatMessages">
           <!-- Messages will be added here -->
         </div>
+        <div class="progress-indicator" id="progressIndicator">
+          <span>Ihr Skript wird generiert </span>
+          <div class="loading"></div>
+          <div id="progressTime" class="mt-1 small text-muted"></div>
+        </div>
+        <div class="error-message" id="errorMessage"></div>
         <div class="chat-input">
           <div class="input-group">
             <input
@@ -136,9 +159,15 @@
       const scriptContent = document.getElementById("scriptContent");
       const copyButton = document.getElementById("copyButton");
       const downloadButton = document.getElementById("downloadButton");
+      const progressIndicator = document.getElementById("progressIndicator");
+      const progressTime = document.getElementById("progressTime");
+      const errorMessage = document.getElementById("errorMessage");
 
       let conversationId = null;
       let generatingScript = false;
+      let scriptGenerationStartTime = null;
+      let checkIntervalId = null;
+      let errorCount = 0;
 
       // Initialize the conversation
       window.onload = function () {
@@ -157,13 +186,19 @@
             conversation_id: null,
           }),
         })
-          .then((response) => response.json())
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(`Network error: ${response.status}`);
+            }
+            return response.json();
+          })
           .then((data) => {
             conversationId = data.conversation_id;
             addBotMessage(data.message);
           })
           .catch((error) => {
             console.error("Error starting conversation:", error);
+            showError(`Fehler beim Starten der Konversation: ${error.message}`);
           });
       }
 
@@ -180,6 +215,9 @@
         userInput.disabled = true;
         sendButton.disabled = true;
 
+        // Hide any previous errors
+        hideError();
+
         fetch("/api/chat", {
           method: "POST",
           headers: {
@@ -190,7 +228,12 @@
             conversation_id: conversationId,
           }),
         })
-          .then((response) => response.json())
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(`Network error: ${response.status}`);
+            }
+            return response.json();
+          })
           .then((data) => {
             addBotMessage(data.message);
             conversationId = data.conversation_id;
@@ -202,20 +245,56 @@
 
             // Check if script is generating
             if (data.state === "generating_script") {
-              generatingScript = true;
-              checkScriptStatus();
+              startScriptGenerationTracking();
             }
 
             // If script is ready, display it
             if (data.script) {
               displayScript(data.script);
             }
+
+            // Check for error state
+            if (data.state === "error") {
+              showError(
+                "Es ist ein Fehler aufgetreten. Bitte versuchen Sie es später erneut."
+              );
+            }
           })
           .catch((error) => {
             console.error("Error sending message:", error);
+            showError(`Fehler beim Senden der Nachricht: ${error.message}`);
             userInput.disabled = false;
             sendButton.disabled = false;
           });
+      }
+
+      // Start tracking script generation
+      function startScriptGenerationTracking() {
+        generatingScript = true;
+        scriptGenerationStartTime = new Date();
+
+        // Show the progress indicator
+        progressIndicator.style.display = "block";
+
+        // Set up interval to update the elapsed time
+        if (checkIntervalId) {
+          clearInterval(checkIntervalId);
+        }
+
+        checkIntervalId = setInterval(() => {
+          const now = new Date();
+          const elapsedSeconds = Math.floor(
+            (now - scriptGenerationStartTime) / 1000
+          );
+          const minutes = Math.floor(elapsedSeconds / 60);
+          const seconds = elapsedSeconds % 60;
+          progressTime.textContent = `Laufzeit: ${minutes}:${
+            seconds < 10 ? "0" : ""
+          }${seconds}`;
+        }, 1000);
+
+        // Start checking status
+        checkScriptStatus();
       }
 
       // Check script generation status
@@ -225,24 +304,71 @@
         // Check status every 3 seconds
         setTimeout(() => {
           fetch(`/api/script/${conversationId}`)
-            .then((response) => response.json())
+            .then((response) => {
+              if (!response.ok) {
+                throw new Error(`Server returned ${response.status}`);
+              }
+              return response.json();
+            })
             .then((data) => {
               if (data.status === "complete") {
-                generatingScript = false;
+                finishScriptGeneration();
                 displayScript(data.script);
                 addBotMessage(
                   "Ihr Schulungsskript wurde erstellt! Sie können es unten einsehen, kopieren oder herunterladen."
                 );
-              } else {
+              } else if (data.status === "error") {
+                finishScriptGeneration();
+                showError(`Fehler bei der Skripterstellung: ${data.message}`);
+              } else if (data.status === "generating") {
                 // Continue checking
                 checkScriptStatus();
+              } else {
+                // Unknown status
+                errorCount++;
+                if (errorCount > 5) {
+                  finishScriptGeneration();
+                  showError(
+                    "Zu viele fehlerhafte Statusabfragen. Bitte versuchen Sie es später erneut."
+                  );
+                } else {
+                  // Continue checking
+                  checkScriptStatus();
+                }
               }
             })
             .catch((error) => {
               console.error("Error checking script status:", error);
-              generatingScript = false;
+              errorCount++;
+
+              if (errorCount > 5) {
+                finishScriptGeneration();
+                showError(
+                  `Es gab ein Problem bei der Statusabfrage: ${error.message}`
+                );
+              } else {
+                // Try again
+                checkScriptStatus();
+              }
             });
         }, 3000);
+      }
+
+      // Finish script generation tracking
+      function finishScriptGeneration() {
+        generatingScript = false;
+
+        // Hide the progress indicator
+        progressIndicator.style.display = "none";
+
+        // Clear the interval
+        if (checkIntervalId) {
+          clearInterval(checkIntervalId);
+          checkIntervalId = null;
+        }
+
+        // Reset error count
+        errorCount = 0;
       }
 
       // Display the generated script
@@ -251,6 +377,17 @@
         scriptContainer.style.display = "block";
         // Scroll to script container
         scriptContainer.scrollIntoView({ behavior: "smooth" });
+      }
+
+      // Show error message
+      function showError(message) {
+        errorMessage.textContent = message;
+        errorMessage.style.display = "block";
+      }
+
+      // Hide error message
+      function hideError() {
+        errorMessage.style.display = "none";
       }
 
       // Add a user message to the chat
@@ -288,6 +425,7 @@
           })
           .catch((err) => {
             console.error("Fehler beim Kopieren: ", err);
+            alert("Fehler beim Kopieren: " + err);
           });
       });
 
