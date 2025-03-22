@@ -4,6 +4,7 @@ import logging
 import requests
 from typing import Dict, List, Any, Optional
 import numpy as np
+import json
 
 import config
 
@@ -22,7 +23,7 @@ class OllamaClient:
 
     def generate(self, prompt: str, system_prompt: Optional[str] = None, 
              temperature: float = None, max_tokens: int = None) -> str:
-        """Generate text using Ollama with reasoning output filtering."""
+        """Generate text using Ollama with robust error handling for malformed JSON."""
         temperature = temperature if temperature is not None else config.LLM_TEMPERATURE
         max_tokens = max_tokens if max_tokens is not None else config.LLM_MAX_TOKENS
 
@@ -41,15 +42,52 @@ class OllamaClient:
         if system_prompt:
             payload["system"] = system_prompt
         
+        # Ensure we're explicitly setting stream to false
+        payload["stream"] = False
+        
         try:
+            # Send the request to Ollama
             response = requests.post(self.generate_endpoint, json=payload)
             
             if response.status_code == 200:
-                raw_text = response.json().get('response', '')
+                # Get the raw text response
+                raw_response_text = response.text
                 
-                # Post-process to remove reasoning tags and content
-                processed_text = self._filter_reasoning_output(raw_text)
-                return processed_text
+                try:
+                    # Try to parse as standard JSON
+                    response_data = json.loads(raw_response_text)
+                    return response_data.get('response', '')
+                except json.JSONDecodeError as json_err:
+                    logger.warning(f"JSON parsing error: {json_err}")
+                    
+                    # Attempt to extract the first valid JSON object from the response
+                    import re
+                    json_pattern = r'(\{.*?\})'
+                    json_matches = re.findall(json_pattern, raw_response_text, re.DOTALL)
+                    
+                    if json_matches:
+                        # Try each potential JSON object until we find a valid one
+                        for potential_json in json_matches:
+                            try:
+                                obj = json.loads(potential_json)
+                                if 'response' in obj:
+                                    logger.info("Successfully extracted response from malformed JSON")
+                                    return obj.get('response', '')
+                            except json.JSONDecodeError:
+                                continue
+                    
+                    # If we can't extract JSON, look for response pattern directly
+                    response_pattern = r'"response"\s*:\s*"(.*?)(?:"|$)'
+                    response_match = re.search(response_pattern, raw_response_text, re.DOTALL)
+                    
+                    if response_match:
+                        # Found response text directly in pattern
+                        logger.info("Extracted response using regex pattern")
+                        return response_match.group(1)
+                    
+                    # As a last resort, return the raw response text with a warning
+                    logger.warning("Couldn't parse JSON response, returning raw text")
+                    return f"Error parsing response. Raw text: {raw_response_text[:100]}..."
             else:
                 error_message = f"Error {response.status_code}: {response.text}"
                 logger.error(error_message)
