@@ -7,7 +7,6 @@ from models.schema import DocumentChunk, RetrievalResult
 from document_processor import DocumentProcessor
 from ollama_client import OllamaClient
 import config
-from embedding_service import NomicEmbeddingService
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +18,6 @@ class RAGEngine:
         """Initialize the RAG engine."""
         self.document_processor = DocumentProcessor()
         self.ollama_client = OllamaClient()
-        self.embedding_service = NomicEmbeddingService()
 
     def retrieve(self, query: str, context: Dict[str, Any] = None, top_k: int = 5) -> RetrievalResult:
         """Retrieve relevant documents for a query."""

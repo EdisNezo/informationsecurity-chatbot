@@ -7,6 +7,3 @@ jinja2
 numpy
 python-dotenv
 requests
-nomic 
-torch 
-transformers

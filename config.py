@@ -21,8 +21,8 @@ LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "4096"))
 
 # Embedding configuration
 # EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "nomic-embed-text")
-USE_NOMIC_EMBEDDINGS = True  # Flag to use nomic-embed-text
-EMBEDDING_DIMENSION = 8192  # Dimension for llama3.1 embeddings
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "mxbai-embed-large")
+EMBEDDING_DIMENSION = 4096  # Dimension for llama3.1 embeddings
 
 # FAISS configuration
 FAISS_INDEX_PATH = EMBEDDINGS_DIR / "faiss_index.bin"
