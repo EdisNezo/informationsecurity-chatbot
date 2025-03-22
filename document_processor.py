@@ -34,16 +34,34 @@ class DocumentProcessor:
 
     def load_or_create_index(self) -> None:
         """Load an existing FAISS index or create a new one."""
-        if os.path.exists(config.FAISS_INDEX_PATH) and os.path.exists(config.FAISS_MAPPING_PATH):
+        needs_new_index = False
+        
+        # First, check if the files exist
+        if not os.path.exists(config.FAISS_INDEX_PATH) or not os.path.exists(config.FAISS_MAPPING_PATH):
+            logger.info("FAISS index or mapping file not found, creating new index")
+            needs_new_index = True
+        
+        if not needs_new_index:
             try:
+                # Try to load the existing index
                 self.index = faiss.read_index(str(config.FAISS_INDEX_PATH))
                 self.id_to_text = load_json(config.FAISS_MAPPING_PATH)
-                logger.info(f"Loaded existing FAISS index with {self.index.ntotal} vectors")
+                
+                # Check if dimensions match
+                if self.index.d != config.EMBEDDING_DIMENSION:
+                    logger.warning(f"FAISS index dimension ({self.index.d}) doesn't match "
+                                f"current embedding dimension ({config.EMBEDDING_DIMENSION})")
+                    logger.warning("Creating new index with correct dimensions")
+                    needs_new_index = True
+                else:
+                    logger.info(f"Loaded existing FAISS index with {self.index.ntotal} vectors")
             except Exception as e:
                 logger.error(f"Error loading FAISS index: {e}")
-                self.create_new_index()
-        else:
-            self.create_new_index()
+                needs_new_index = True
+    
+    # Create a new index if needed
+    if needs_new_index:
+        self.create_new_index()
 
     def create_new_index(self) -> None:
         """Create a new FAISS index."""

@@ -232,24 +232,91 @@ async def health_check():
         }
 @app.on_event("startup")
 async def startup_event():
-    """Initialize the document index on startup and test Ollama connection."""
-    # Test Ollama embedding connection
-    try:
-        ollama_client = OllamaClient()
-        logger.info(f"Testing embeddings with model: {config.EMBEDDING_MODEL}")
-        test_embedding = ollama_client.get_embedding("This is a test sentence for embeddings.")
-        if test_embedding:
-            logger.info(f"Embedding test successful with dimension: {len(test_embedding)}")
-            # Update the EMBEDDING_DIMENSION if it doesn't match
-            if len(test_embedding) != config.EMBEDDING_DIMENSION:
-                logger.warning(f"Embedding dimension in config ({config.EMBEDDING_DIMENSION}) doesn't match actual dimension ({len(test_embedding)})")
-                logger.warning(f"Consider updating the EMBEDDING_DIMENSION in config.py")
-        else:
-            logger.error(f"Embedding test failed - received empty embedding")
-    except Exception as e:
-        logger.error(f"Error testing embeddings: {e}", exc_info=True)
+    """Initialize the document index on startup and test connections."""
+    logger.info("Starting application initialization...")
     
-    # Rest of your startup code...
+    # Step 1: Test Ollama embedding connection with mxbai-embed-large
+    try:
+        logger.info("Testing connection to Ollama embedding service...")
+        ollama_client = OllamaClient()
+        test_embedding = ollama_client.get_embedding("This is a test sentence for embeddings.")
+        
+        if test_embedding:
+            actual_dimension = len(test_embedding)
+            logger.info(f"Successfully connected to Ollama embeddings API")
+            logger.info(f"Actual embedding dimension from mxbai-embed-large: {actual_dimension}")
+            
+            # Check if the configured dimension matches the actual dimension
+            if actual_dimension != config.EMBEDDING_DIMENSION:
+                logger.warning(f"⚠️ Dimension mismatch: Config has {config.EMBEDDING_DIMENSION}, but model produces {actual_dimension}")
+                logger.warning(f"Updating in-memory EMBEDDING_DIMENSION to {actual_dimension}")
+                # Update the dimension in memory to prevent errors
+                config.EMBEDDING_DIMENSION = actual_dimension
+        else:
+            logger.error("❌ Failed to get test embedding - received empty result")
+            logger.error("Check if mxbai-embed-large is available in Ollama")
+    except Exception as e:
+        logger.error(f"❌ Error testing embedding connection: {e}", exc_info=True)
+        logger.error("Application may not function correctly without embeddings")
+    
+    # Step 2: Test Ollama LLM connection with your text generation model
+    try:
+        logger.info(f"Testing connection to Ollama LLM service with model {config.LLM_MODEL}...")
+        test_response = ollama_client.generate(
+            "Test", 
+            system_prompt="This is a test.", 
+            max_tokens=20
+        )
+        if test_response:
+            logger.info(f"Successfully connected to Ollama LLM API")
+            logger.info(f"Response preview: {test_response[:30]}...")
+        else:
+            logger.error(f"❌ Failed to get response from LLM model {config.LLM_MODEL}")
+    except Exception as e:
+        logger.error(f"❌ Error testing LLM connection: {e}", exc_info=True)
+        logger.error("Application may not function correctly without LLM capabilities")
+    
+    # Step 3: Initialize document processor and index documents
+    try:
+        logger.info("Initializing document processor...")
+        
+        # Check if we need to recreate the FAISS index due to dimension changes
+        if os.path.exists(config.FAISS_INDEX_PATH):
+            try:
+                index = faiss.read_index(str(config.FAISS_INDEX_PATH))
+                if index.d != config.EMBEDDING_DIMENSION:
+                    logger.warning(f"⚠️ Existing FAISS index has dimension {index.d}, but we need {config.EMBEDDING_DIMENSION}")
+                    logger.warning("Deleting old index files to force recreation")
+                    # Delete the old files to force creation of a new index with correct dimensions
+                    os.remove(config.FAISS_INDEX_PATH)
+                    if os.path.exists(config.FAISS_MAPPING_PATH):
+                        os.remove(config.FAISS_MAPPING_PATH)
+            except Exception as e:
+                logger.error(f"Error checking existing FAISS index: {e}")
+                logger.warning("Will try to create a new index")
+        
+        # Now index the documents
+        logger.info("Indexing documents...")
+        document_processor.index_documents()
+        logger.info("Document indexing completed successfully")
+    except Exception as e:
+        logger.error(f"❌ Error during document indexing: {e}", exc_info=True)
+        logger.error("Application may have limited retrieval capabilities")
+    
+    # Step 4: Perform a test retrieval to verify the entire pipeline
+    try:
+        logger.info("Testing retrieval pipeline...")
+        test_query = "Informationssicherheit im Gesundheitswesen"
+        chunks = document_processor.get_chunks_for_query(test_query, top_k=1)
+        if chunks:
+            logger.info(f"Retrieval test successful: found {len(chunks)} relevant chunks")
+            logger.info(f"Sample chunk: {chunks[0].text[:50]}...")
+        else:
+            logger.warning("⚠️ Retrieval test returned no results")
+    except Exception as e:
+        logger.error(f"❌ Error during retrieval test: {e}", exc_info=True)
+    
+    logger.info("Application startup complete!")
 
 async def script_generator_with_timeout(conversation_id: str, dialog_manager, timeout_seconds: int = 300):
     """Run script generation with a timeout."""
