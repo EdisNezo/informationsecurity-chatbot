@@ -15,7 +15,7 @@ os.makedirs(EMBEDDINGS_DIR, exist_ok=True)
 
 # Ollama configuration
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-r1:32b")
+LLM_MODEL = os.getenv("LLM_MODEL", "gemma3:27b")
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.7"))
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "4096"))
 
