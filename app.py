@@ -149,7 +149,7 @@ async def get_script(conversation_id: str):
             
             # Check the state again after potentially handling task exceptions
             if conversation.current_state == "finished":
-                return {"status": "complete", "script": getattr(conversation, "generated_script", "")}
+                return {"status": "complete", "script": dialog_manager.get_generated_script(conversation_id) or ""}
             elif conversation.current_state == "error":
                 return {"status": "error", "message": "Fehler bei der Skripterstellung"}
             else:
@@ -165,12 +165,12 @@ async def get_script(conversation_id: str):
     
     # If generation is finished, return the script
     if conversation.current_state == "finished":
-        script = getattr(conversation, "generated_script", "")
+        script = dialog_manager.get_generated_script(conversation_id)
         if not script:
             # Generate it if missing (shouldn't happen normally)
             try:
                 script = script_generator.generate_script(conversation)
-                conversation.generated_script = script
+                dialog_manager.set_generated_script(conversation_id, script)
             except Exception as e:
                 logger.error(f"Error generating missing script: {e}", exc_info=True)
                 return {"status": "error", "message": str(e)}

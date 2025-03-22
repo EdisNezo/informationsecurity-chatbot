@@ -19,8 +19,9 @@ class DialogManager:
         self.conversations = {}
         self.template = self.load_template()
         self.sections = self.template.sections if self.template else []
-        # Add a dictionary to store adapted questions by conversation ID
+        # Store adapted questions separately to avoid Pydantic validation errors
         self._adapted_questions = {}
+        self._generated_scripts = {}
 
     def load_template(self) -> Optional[Template]:
         """Load the script template."""
@@ -224,7 +225,7 @@ Beginnen wir mit Sektion 1: {section.title} - {section.description}
         if conversation.id not in self._adapted_questions:
             self._adapted_questions[conversation.id] = {}
         
-        # Adapt if not already done
+        # Get or create adapted questions for this section
         if conversation.current_section not in self._adapted_questions[conversation.id]:
             selected_questions = []
             for question in raw_questions:
@@ -237,8 +238,9 @@ Beginnen wir mit Sektion 1: {section.title} - {section.description}
             
             # Store the adapted questions
             self._adapted_questions[conversation.id][conversation.current_section] = selected_questions
-        else:
-            selected_questions = self._adapted_questions[conversation.id][conversation.current_section]
+        
+        # Get the adapted questions for this section
+        selected_questions = self._adapted_questions[conversation.id][conversation.current_section]
         
         # Save the answer
         current_question_idx = conversation.questions_asked_in_section
@@ -270,23 +272,23 @@ Beginnen wir mit Sektion 1: {section.title} - {section.description}
                 if conversation.current_section <= len(self.sections):
                     next_section = self.sections[conversation.current_section - 1]
                     
+                    # Get base questions for the next section
+                    next_raw_questions = next_section.dict()["questions"][:config.MAX_QUESTIONS_PER_SECTION]
+                    
                     # Adapt questions for the next section
-                    raw_questions = next_section.dict()["questions"][:config.MAX_QUESTIONS_PER_SECTION]
-                    adapted_questions = []
-                    for question in raw_questions:
+                    next_adapted_questions = []
+                    for question in next_raw_questions:
                         adapted_question = self._adapt_question_for_user(
                             question, 
                             conversation.context_answers, 
                             next_section.title
                         )
-                        adapted_questions.append(adapted_question)
+                        next_adapted_questions.append(adapted_question)
                     
                     # Store the adapted questions
-                    if not hasattr(conversation, "adapted_questions"):
-                        conversation.adapted_questions = {}
-                    conversation.adapted_questions[conversation.current_section] = adapted_questions
+                    self._adapted_questions[conversation.id][conversation.current_section] = next_adapted_questions
                     
-                    if adapted_questions:
+                    if next_adapted_questions:
                         transition_message = f"""
 Vielen Dank für Ihre Antworten zu Sektion {section.id}: {section.title}.
 
@@ -294,7 +296,7 @@ Fahren wir fort mit Sektion {next_section.id}: {next_section.title} - {next_sect
 """
                         conversation.messages.append(Message(role=MessageRole.ASSISTANT, content=transition_message))
                         
-                        next_question = adapted_questions[0]
+                        next_question = next_adapted_questions[0]
                         conversation.messages.append(Message(role=MessageRole.ASSISTANT, content=next_question))
                         return transition_message + "\n\n" + next_question, None, conversation.current_state
                 
@@ -327,8 +329,12 @@ Falls Sie Änderungen wünschen oder weitere Fragen haben, stehe ich Ihnen gerne
 """
             conversation.messages.append(Message(role=MessageRole.ASSISTANT, content=completion_message))
             conversation.current_state = "finished"
-            # Store the script in the conversation
-            conversation.generated_script = script
+            # Store the script in our dictionary instead of on the conversation
+            self._generated_scripts[conversation_id] = script
+
+    def get_generated_script(self, conversation_id: str) -> Optional[str]:
+        """Get the generated script for a conversation."""
+        return self._generated_scripts.get(conversation_id)
 
     def set_error_state(self, conversation_id: str, error_message: str) -> None:
         """Set the conversation to an error state."""

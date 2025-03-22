@@ -176,7 +176,7 @@ Schreibe die Schlussfolgerung so, dass sie von einem Sprecher vorgelesen werden 
             elapsed_time = time.time() - start_time
             logger.info(f"Script generation completed in {elapsed_time:.2f} seconds")
             
-            # Update the conversation
+            # Update the conversation with the new method
             dialog_manager.set_generated_script(conversation_id, script)
             
             return script
