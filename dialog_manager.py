@@ -196,21 +196,8 @@ class DialogManager:
             adapted_question = rag_engine.generate(prompt, retrieval_result, context=context_answers)
             logger.debug(f"Raw adapted question: {adapted_question[:100]}..." if adapted_question and len(adapted_question) > 100 else f"Raw adapted question: {adapted_question}")
             
-            # If generation succeeded and produced a reasonable result
-            if adapted_question and len(adapted_question.strip()) > 10:
-                # No cleaning needed for Gemma responses
+            return adapted_question
                 
-                # Clean up any extra text that might have been generated
-                adapted_question = adapted_question.strip()
-                logger.debug(f"Stripped question: {adapted_question[:100]}..." if len(adapted_question) > 100 else adapted_question)
-                
-                # Take the first sentence if there are multiple
-                if "." in adapted_question:
-                    original = adapted_question
-                    adapted_question = adapted_question.split(".")[0].strip() + "?"
-                    logger.debug(f"Extracted first sentence: {adapted_question}")
-                    logger.info(f"Successfully adapted question to: {adapted_question}")
-                return adapted_question
                     
         except Exception as e:
             logger.error(f"Error adapting question: {e}", exc_info=True)
