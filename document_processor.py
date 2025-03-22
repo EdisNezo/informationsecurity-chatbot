@@ -50,7 +50,7 @@ class DocumentProcessor:
                 # Check if dimensions match
                 if self.index.d != config.EMBEDDING_DIMENSION:
                     logger.warning(f"FAISS index dimension ({self.index.d}) doesn't match "
-                                  f"current embedding dimension ({config.EMBEDDING_DIMENSION})")
+                                 f"configured dimension ({config.EMBEDDING_DIMENSION})")
                     logger.warning("Creating new index with correct dimensions")
                     needs_new_index = True
                 else:
@@ -71,59 +71,87 @@ class DocumentProcessor:
 
     def index_documents(self) -> None:
         """Index all documents in the source docs directory."""
+        # Verify dimension consistency before starting
+        test_embedding = self.ollama_client.get_embedding("Test embedding")
+        if test_embedding and len(test_embedding) != config.EMBEDDING_DIMENSION:
+            logger.warning(f"Embedding dimension from model ({len(test_embedding)}) differs from config ({config.EMBEDDING_DIMENSION})")
+            logger.warning(f"Updating config to match embedding model")
+            config.EMBEDDING_DIMENSION = len(test_embedding)
+            self.create_new_index()
+        
+        # Find and process documents
+        document_count = 0
         for file_path in config.SOURCE_DOCS_DIR.glob("*.*"):
             if file_path.suffix.lower() in [".txt", ".json", ".md"]:
                 self.index_document(file_path)
+                document_count += 1
         
-        self.save_index()
-        logger.info(f"Indexed all documents, total {self.index.ntotal} vectors")
+        if document_count > 0:
+            self.save_index()
+            logger.info(f"Indexed {document_count} documents, total {self.index.ntotal} vectors")
+        else:
+            logger.warning("No documents found to index")
 
     def index_document(self, file_path: Path) -> None:
         """Index a single document."""
         logger.info(f"Indexing document: {file_path}")
         
+        # Read the document
         if file_path.suffix.lower() == ".json":
             document = load_json(file_path)
             text = json.dumps(document, ensure_ascii=False)
         else:
             text = read_text_file(file_path)
         
+        # Split into chunks
         chunks = self.text_splitter.split_text(text)
+        logger.info(f"Split document into {len(chunks)} chunks")
         
+        # Process each chunk
+        chunk_count = 0
         for chunk in chunks:
-            chunk_id = generate_id()
-            self.id_to_text[chunk_id] = {
-                "text": chunk,
-                "source": file_path.name,
-                "metadata": {
-                    "path": str(file_path),
-                    "type": file_path.suffix.lower()[1:],
-                }
-            }
-            
+            # Get embedding
             embedding = self.ollama_client.get_embedding(chunk)
+            
+            # Verify embedding is valid and has correct dimensions
             if embedding and len(embedding) > 0:
-                # Ensure embedding matches the expected dimension
+                # Double check dimensions
                 if len(embedding) != config.EMBEDDING_DIMENSION:
-                    logger.warning(f"Embedding dimension mismatch: got {len(embedding)}, expected {config.EMBEDDING_DIMENSION}")
-                    logger.warning("Updating config.EMBEDDING_DIMENSION to match actual dimension")
-                    config.EMBEDDING_DIMENSION = len(embedding)
-                    
-                    # Recreate the index with the new dimension
-                    if self.index.ntotal > 0:
-                        logger.warning("Recreating index with new dimension")
-                        self.create_new_index()
+                    logger.error(f"Embedding dimension mismatch: got {len(embedding)}, expected {config.EMBEDDING_DIMENSION}")
+                    continue
                 
-                self.index.add(np.array([embedding], dtype=np.float32))
+                # Store the chunk and its embedding
+                chunk_id = generate_id()
+                self.id_to_text[chunk_id] = {
+                    "text": chunk,
+                    "source": file_path.name,
+                    "metadata": {
+                        "path": str(file_path),
+                        "type": file_path.suffix.lower()[1:],
+                    }
+                }
+                
+                # Add to index
+                try:
+                    self.index.add(np.array([embedding], dtype=np.float32))
+                    chunk_count += 1
+                except Exception as e:
+                    logger.error(f"Error adding vector to index: {e}")
             else:
                 logger.warning(f"Could not get embedding for chunk: {chunk[:50]}...")
+        
+        logger.info(f"Successfully indexed {chunk_count} chunks from {file_path.name}")
 
     def save_index(self) -> None:
         """Save the FAISS index and ID to text mapping."""
         try:
-            faiss.write_index(self.index, str(config.FAISS_INDEX_PATH))
-            save_json(self.id_to_text, config.FAISS_MAPPING_PATH)
-            logger.info(f"Saved FAISS index with {self.index.ntotal} vectors")
+            # Only save if there's data in the index
+            if self.index.ntotal > 0:
+                faiss.write_index(self.index, str(config.FAISS_INDEX_PATH))
+                save_json(self.id_to_text, config.FAISS_MAPPING_PATH)
+                logger.info(f"Saved FAISS index with {self.index.ntotal} vectors")
+            else:
+                logger.warning("Not saving empty index")
         except Exception as e:
             logger.error(f"Error saving FAISS index: {e}")
 
@@ -133,15 +161,23 @@ class DocumentProcessor:
             logger.warning("FAISS index is empty, no chunks to retrieve")
             return []
         
+        # Get embedding for query
         query_embedding = self.ollama_client.get_embedding(query)
+        
         if not query_embedding:
             logger.error("Could not get embedding for query")
             return []
+        
+        # Verify dimensions
+        if len(query_embedding) != self.index.d:
+            logger.error(f"Query embedding dimension ({len(query_embedding)}) doesn't match index dimension ({self.index.d})")
+            return []
             
+        # Search for similar chunks
         query_embedding_np = np.array([query_embedding], dtype=np.float32)
+        scores, indices = self.index.search(query_embedding_np, min(top_k, self.index.ntotal))
         
-        scores, indices = self.index.search(query_embedding_np, top_k)
-        
+        # Convert results to DocumentChunk objects
         chunks = []
         for i, idx in enumerate(indices[0]):
             if idx != -1:  # -1 indicates no result
@@ -154,4 +190,5 @@ class DocumentProcessor:
                     metadata=chunk_data["metadata"]
                 ))
         
+        logger.info(f"Found {len(chunks)} relevant chunks for query")
         return chunks

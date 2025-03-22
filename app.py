@@ -18,6 +18,7 @@ from script_generator import ScriptGenerator
 from document_processor import DocumentProcessor
 from ollama_client import OllamaClient
 import config
+import faiss
 
 logger = logging.getLogger(__name__)
 
@@ -244,7 +245,7 @@ async def startup_event():
         if test_embedding:
             actual_dimension = len(test_embedding)
             logger.info(f"Successfully connected to Ollama embeddings API")
-            logger.info(f"Actual embedding dimension from mxbai-embed-large: {actual_dimension}")
+            logger.info(f"Embedding dimension from mxbai-embed-large: {actual_dimension}")
             
             # Check if the configured dimension matches the actual dimension
             if actual_dimension != config.EMBEDDING_DIMENSION:
@@ -252,6 +253,16 @@ async def startup_event():
                 logger.warning(f"Updating in-memory EMBEDDING_DIMENSION to {actual_dimension}")
                 # Update the dimension in memory to prevent errors
                 config.EMBEDDING_DIMENSION = actual_dimension
+                
+                # If there's an existing index, check if it needs to be recreated
+                if os.path.exists(config.FAISS_INDEX_PATH):
+                    try:
+                        index = faiss.read_index(str(config.FAISS_INDEX_PATH))
+                        if index.d != actual_dimension:
+                            logger.warning("Existing FAISS index has incompatible dimensions")
+                            logger.warning("You should run the reset_index.py script before continuing")
+                    except Exception as e:
+                        logger.error(f"Error checking existing index: {e}")
         else:
             logger.error("❌ Failed to get test embedding - received empty result")
             logger.error("Check if mxbai-embed-large is available in Ollama")
