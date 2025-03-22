@@ -196,8 +196,6 @@ class DialogManager:
                 if selected_questions:
                     transition_message = f"""
 Vielen Dank für diese Informationen! Nun werde ich Ihnen einige Fragen zu den verschiedenen Sektionen des Schulungsskripts stellen.
-
-Beginnen wir mit Sektion 1: {section.title} - {section.description}
 """
                     conversation.messages.append(Message(role=MessageRole.ASSISTANT, content=transition_message))
                     
@@ -289,11 +287,7 @@ Beginnen wir mit Sektion 1: {section.title} - {section.description}
                     self._adapted_questions[conversation.id][conversation.current_section] = next_adapted_questions
                     
                     if next_adapted_questions:
-                        transition_message = f"""
-Vielen Dank für Ihre Antworten zu Sektion {section.id}: {section.title}.
-
-Fahren wir fort mit Sektion {next_section.id}: {next_section.title} - {next_section.description}
-"""
+                        transition_message = f""""""
                         conversation.messages.append(Message(role=MessageRole.ASSISTANT, content=transition_message))
                         
                         next_question = next_adapted_questions[0]
