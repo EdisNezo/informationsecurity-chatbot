@@ -15,12 +15,12 @@ os.makedirs(EMBEDDINGS_DIR, exist_ok=True)
 
 # Ollama configuration
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-LLM_MODEL = os.getenv("LLM_MODEL", "llama3.1")
+LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-r1:32")
 LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.7"))
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "4096"))
 
 # Embedding configuration
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "llama3.1")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "deepseek-r1:32")
 EMBEDDING_DIMENSION = 4096  # Dimension for llama3.1 embeddings
 
 # FAISS configuration

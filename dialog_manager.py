@@ -43,11 +43,11 @@ class DialogManager:
         
         # Add greeting message
         greeting = """
-Willkommen! Ich bin Ihr Assistent für die Erstellung von Informationssicherheits-Schulungsskripten im Gesundheitswesen. 
-Ich werde Ihnen einige Fragen stellen, um ein maßgeschneidertes Skript für Ihre Einrichtung zu erstellen.
+        Willkommen! Ich bin Ihr Assistent für die Erstellung von Informationssicherheits-Schulungsskripten im Gesundheitswesen. 
+        Ich werde Ihnen einige Fragen stellen, um ein maßgeschneidertes Skript für Ihre Einrichtung zu erstellen.
 
-Zunächst benötige ich einige Informationen zum Kontext Ihrer Einrichtung.
-"""
+        Zunächst benötige ich einige Informationen zum Kontext Ihrer Einrichtung.
+        """
         conversation.messages.append(Message(role=MessageRole.ASSISTANT, content=greeting))
         
         # Add first context question
@@ -112,22 +112,22 @@ Zunächst benötige ich einige Informationen zum Kontext Ihrer Einrichtung.
         # Use the RAG engine to adapt the question
         rag_engine = RAGEngine()
         prompt = f"""
-Bitte formuliere die folgende Frage zur Informationssicherheit um, damit sie für Mitarbeiter in {organization_type} 
-ohne tiefgreifendes Sicherheitswissen verständlicher wird. Die Frage gehört zum Bereich "{section_title}".
+        Bitte formuliere die folgende Frage zur Informationssicherheit um, damit sie für Mitarbeiter in {organization_type} 
+        ohne tiefgreifendes Sicherheitswissen verständlicher wird. Die Frage gehört zum Bereich "{section_title}".
 
-Ursprüngliche Frage: {question}
+        Ursprüngliche Frage: {question}
 
-Kontext zur Organisation und den Teilnehmern:
-{context_info}
+        Kontext zur Organisation und den Teilnehmern:
+        {context_info}
 
-Die neue Frage sollte:
-1. Alltagssprache verwenden statt technischen Fachjargon
-2. Konkrete Beispiele aus dem medizinischen Umfeld einbeziehen
-3. Direkt auf die Arbeitssituation der Teilnehmer bezogen sein
-4. Weniger abstrakt und mehr praxisorientiert sein
+        Die neue Frage sollte:
+        1. Alltagssprache verwenden statt technischen Fachjargon
+        2. Konkrete Beispiele aus dem medizinischen Umfeld einbeziehen
+        3. Direkt auf die Arbeitssituation der Teilnehmer bezogen sein
+        4. Weniger abstrakt und mehr praxisorientiert sein
 
-Gib nur die umformulierte Frage zurück, ohne Erklärungen oder zusätzlichen Text.
-"""
+        Gib nur die umformulierte Frage zurück, ohne Erklärungen oder zusätzlichen Text.
+        """
         
         try:
             # Get retrieval results
