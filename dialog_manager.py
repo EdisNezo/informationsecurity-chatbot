@@ -76,15 +76,31 @@ class DialogManager:
         
         # Process based on current state
         if conversation.current_state == "context_questions":
-            return self._handle_context_question(conversation, message)
+            response_message, script, state = self._handle_context_question(conversation, message)
         elif conversation.current_state == "section_questions":
-            return self._handle_section_question(conversation, message)
+            response_message, script, state = self._handle_section_question(conversation, message)
         elif conversation.current_state == "finished":
-            return "Ihr Skript wurde bereits erstellt. Möchten Sie ein neues Skript erstellen?", None, "finished"
+            response_message = "Ihr Skript wurde bereits erstellt. Möchten Sie ein neues Skript erstellen?"
+            script, state = None, "finished"
         elif conversation.current_state == "error":
-            return "Es ist ein Fehler aufgetreten. Möchten Sie von vorne beginnen?", None, "error"
+            response_message = "Es ist ein Fehler aufgetreten. Möchten Sie von vorne beginnen?"
+            script, state = None, "error"
         else:
-            return "Es tut mir leid, aber ich verstehe Ihren aktuellen Status nicht.", None, "error"
+            response_message = "Es tut mir leid, aber ich verstehe Ihren aktuellen Status nicht."
+            script, state = None, "error"
+        
+        # Clean the response to remove reasoning artifacts
+        clean_response = self._clean_llm_response(response_message)
+        
+        # Only update the stored message if cleaning changed something
+        if clean_response != response_message:
+            # If the message is already stored in conversation.messages, update it
+            if conversation.messages and conversation.messages[-1].role == MessageRole.ASSISTANT:
+                conversation.messages[-1].content = clean_response
+            
+            return clean_response, script, state
+        
+        return response_message, script, state
 
     def _adapt_question_for_user(self, question: str, context_answers: Dict[str, str], section_title: str) -> str:
         """Adapt a question to be more understandable based on context answers."""
@@ -139,7 +155,7 @@ class DialogManager:
             # If generation succeeded and produced a reasonable result
             if adapted_question and len(adapted_question.strip()) > 10:
                 # Clean up any extra text that might have been generated
-                adapted_question = adapted_question.strip()
+                adapted_question = self._clean_llm_response(adapted_question.strip())
                 # Take the first sentence if there are multiple
                 if "." in adapted_question:
                     adapted_question = adapted_question.split(".")[0].strip() + "?"
@@ -341,3 +357,47 @@ Bitte versuchen Sie es erneut oder kontaktieren Sie den Support.
 """
             conversation.messages.append(Message(role=MessageRole.ASSISTANT, content=error_notice))
             conversation.current_state = "error"
+            
+def _clean_llm_response(self, text: str) -> str:
+    """Clean LLM response from reasoning artifacts and other unwanted content."""
+    # Remove thinking tags and content
+    import re
+    
+    # List of patterns to clean
+    patterns = [
+        # Thinking tags
+        r'<think>.*?</think>',
+        r'<think>.*?$',
+        r'<think.*?>.*?(?:</think>|$)',
+        r'<think>.*',
+        
+        # Other reasoning formats
+        r'\[thinking:.*?\]',
+        r'\[thought:.*?\]',
+        r'\(thinking:.*?\)',
+        r'\(thinking.*?\)',
+        
+        # Instruction leakage
+        r'<instruction>.*?</instruction>',
+        r'<system>.*?</system>',
+        
+        # Planning patterns
+        r'Step \d+:.*',  # Sometimes models outline steps before answering
+        r'Let me plan my response:.*',
+        r'I need to:.*',
+        r'First, I will.*Then, I will',
+        
+        # Meta-commentary
+        r'I should respond with.*',
+        r'I need to formulate.*',
+    ]
+    
+    # Apply all patterns
+    for pattern in patterns:
+        text = re.sub(pattern, '', text, flags=re.DOTALL)
+    
+    # Clean up spaces and newlines
+    text = re.sub(r'\s+', ' ', text)
+    text = re.sub(r'\n\s*\n', '\n\n', text)
+    
+    return text.strip()
