@@ -106,7 +106,7 @@ async def chat(request: ChatRequest, background_tasks: BackgroundTasks):
         
         # Add the new background task
         task = asyncio.create_task(
-            script_generator_with_timeout(conversation_id, dialog_manager, 300)  # 5 minute timeout
+            script_generator_with_timeout(conversation_id, dialog_manager, 3000)  # 5 minute timeout
         )
         script_tasks[conversation_id] = task
         
