@@ -19,6 +19,8 @@ class DialogManager:
         self.conversations = {}
         self.template = self.load_template()
         self.sections = self.template.sections if self.template else []
+        # Add a dictionary to store adapted questions by conversation ID
+        self._adapted_questions = {}
 
     def load_template(self) -> Optional[Template]:
         """Load the script template."""
@@ -173,6 +175,10 @@ Gib nur die umformulierte Frage zurück, ohne Erklärungen oder zusätzlichen Te
                 # Get the base questions
                 raw_questions = section.dict()["questions"][:config.MAX_QUESTIONS_PER_SECTION]
                 
+                # Initialize adapted questions storage
+                if conversation.id not in self._adapted_questions:
+                    self._adapted_questions[conversation.id] = {}
+                
                 # Adapt each question based on context
                 selected_questions = []
                 for question in raw_questions:
@@ -182,6 +188,9 @@ Gib nur die umformulierte Frage zurück, ohne Erklärungen oder zusätzlichen Te
                         section.title
                     )
                     selected_questions.append(adapted_question)
+                
+                # Store for later use
+                self._adapted_questions[conversation.id][1] = selected_questions
                 
                 if selected_questions:
                     transition_message = f"""
@@ -211,8 +220,12 @@ Beginnen wir mit Sektion 1: {section.title} - {section.description}
         # Get base questions for the current section
         raw_questions = section.dict()["questions"][:config.MAX_QUESTIONS_PER_SECTION]
         
+        # Initialize the adapted questions storage for this conversation if needed
+        if conversation.id not in self._adapted_questions:
+            self._adapted_questions[conversation.id] = {}
+        
         # Adapt if not already done
-        if not hasattr(conversation, "adapted_questions") or conversation.current_section not in conversation.adapted_questions:
+        if conversation.current_section not in self._adapted_questions[conversation.id]:
             selected_questions = []
             for question in raw_questions:
                 adapted_question = self._adapt_question_for_user(
@@ -223,11 +236,9 @@ Beginnen wir mit Sektion 1: {section.title} - {section.description}
                 selected_questions.append(adapted_question)
             
             # Store the adapted questions
-            if not hasattr(conversation, "adapted_questions"):
-                conversation.adapted_questions = {}
-            conversation.adapted_questions[conversation.current_section] = selected_questions
+            self._adapted_questions[conversation.id][conversation.current_section] = selected_questions
         else:
-            selected_questions = conversation.adapted_questions[conversation.current_section]
+            selected_questions = self._adapted_questions[conversation.id][conversation.current_section]
         
         # Save the answer
         current_question_idx = conversation.questions_asked_in_section
