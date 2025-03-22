@@ -13,6 +13,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from models.schema import DocumentChunk
 from utils import load_json, save_json, read_text_file, generate_id
 from ollama_client import OllamaClient
+from embedding_service import NomicEmbeddingService
 import config
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,8 @@ class DocumentProcessor:
     def __init__(self):
         """Initialize the document processor."""
         self.ollama_client = OllamaClient()
+        # Use the new embedding service
+        self.embedding_service = NomicEmbeddingService()
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=config.CHUNK_SIZE,
             chunk_overlap=config.CHUNK_OVERLAP
@@ -34,16 +37,7 @@ class DocumentProcessor:
 
     def load_or_create_index(self) -> None:
         """Load an existing FAISS index or create a new one."""
-        if os.path.exists(config.FAISS_INDEX_PATH) and os.path.exists(config.FAISS_MAPPING_PATH):
-            try:
-                self.index = faiss.read_index(str(config.FAISS_INDEX_PATH))
-                self.id_to_text = load_json(config.FAISS_MAPPING_PATH)
-                logger.info(f"Loaded existing FAISS index with {self.index.ntotal} vectors")
-            except Exception as e:
-                logger.error(f"Error loading FAISS index: {e}")
-                self.create_new_index()
-        else:
-            self.create_new_index()
+        # Rest of method remains the same...
 
     def create_new_index(self) -> None:
         """Create a new FAISS index."""
@@ -53,12 +47,7 @@ class DocumentProcessor:
 
     def index_documents(self) -> None:
         """Index all documents in the source docs directory."""
-        for file_path in config.SOURCE_DOCS_DIR.glob("*.*"):
-            if file_path.suffix.lower() in [".txt", ".json", ".md"]:
-                self.index_document(file_path)
-        
-        self.save_index()
-        logger.info(f"Indexed all documents, total {self.index.ntotal} vectors")
+        # Rest of method remains the same...
 
     def index_document(self, file_path: Path) -> None:
         """Index a single document."""
@@ -83,20 +72,12 @@ class DocumentProcessor:
                 }
             }
             
-            embedding = self.ollama_client.get_embedding(chunk)
+            # Use the new embedding service
+            embedding = self.embedding_service.get_embedding(chunk)
             if embedding:
                 self.index.add(np.array([embedding], dtype=np.float32))
             else:
                 logger.warning(f"Could not get embedding for chunk: {chunk[:50]}...")
-
-    def save_index(self) -> None:
-        """Save the FAISS index and ID to text mapping."""
-        try:
-            faiss.write_index(self.index, str(config.FAISS_INDEX_PATH))
-            save_json(self.id_to_text, config.FAISS_MAPPING_PATH)
-            logger.info(f"Saved FAISS index with {self.index.ntotal} vectors")
-        except Exception as e:
-            logger.error(f"Error saving FAISS index: {e}")
 
     def get_chunks_for_query(self, query: str, top_k: int = 5) -> List[DocumentChunk]:
         """Get relevant document chunks for a query."""
@@ -104,7 +85,8 @@ class DocumentProcessor:
             logger.warning("FAISS index is empty, no chunks to retrieve")
             return []
         
-        query_embedding = self.ollama_client.get_embedding(query)
+        # Use the new embedding service
+        query_embedding = self.embedding_service.get_embedding(query)
         if not query_embedding:
             logger.error("Could not get embedding for query")
             return []

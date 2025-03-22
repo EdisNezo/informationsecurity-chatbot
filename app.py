@@ -230,7 +230,35 @@ async def health_check():
             "status": "error",
             "error": str(e)
         }
-
+@app.on_event("startup")
+async def startup_event():
+    """Initialize the document index on startup and test connections."""
+    # Test embedding service
+    try:
+        from embedding_service import NomicEmbeddingService
+        embedding_service = NomicEmbeddingService()
+        test_embedding = embedding_service.get_embedding("Test embedding for nomic-embed-text")
+        if test_embedding:
+            logger.info(f"nomic-embed-text embedding test successful, dimension: {len(test_embedding)}")
+        else:
+            logger.error("nomic-embed-text embedding test failed")
+    except Exception as e:
+        logger.error(f"Error testing nomic-embed-text: {e}", exc_info=True)
+    
+    # Index documents
+    try:
+        document_processor.index_documents()
+        logger.info("Document indexing completed successfully")
+    except Exception as e:
+        logger.error(f"Error indexing documents: {e}", exc_info=True)
+    
+    # Test Ollama LLM connection
+    try:
+        ollama_client = OllamaClient()
+        test_response = ollama_client.generate("Test", system_prompt="This is a test.", max_tokens=20)
+        logger.info(f"Ollama LLM connection test successful: {test_response[:20]}...")
+    except Exception as e:
+        logger.error(f"Ollama LLM connection test failed: {e}", exc_info=True)
 
 async def script_generator_with_timeout(conversation_id: str, dialog_manager, timeout_seconds: int = 300):
     """Run script generation with a timeout."""
