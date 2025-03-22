@@ -50,7 +50,7 @@ class DocumentProcessor:
                 # Check if dimensions match
                 if self.index.d != config.EMBEDDING_DIMENSION:
                     logger.warning(f"FAISS index dimension ({self.index.d}) doesn't match "
-                                f"current embedding dimension ({config.EMBEDDING_DIMENSION})")
+                                  f"current embedding dimension ({config.EMBEDDING_DIMENSION})")
                     logger.warning("Creating new index with correct dimensions")
                     needs_new_index = True
                 else:
@@ -58,16 +58,16 @@ class DocumentProcessor:
             except Exception as e:
                 logger.error(f"Error loading FAISS index: {e}")
                 needs_new_index = True
-    
-    # Create a new index if needed
-    if needs_new_index:
-        self.create_new_index()
+        
+        # Create a new index if needed
+        if needs_new_index:
+            self.create_new_index()
 
     def create_new_index(self) -> None:
         """Create a new FAISS index."""
         self.index = faiss.IndexFlatIP(config.EMBEDDING_DIMENSION)
         self.id_to_text = {}
-        logger.info("Created new FAISS index")
+        logger.info(f"Created new FAISS index with dimension {config.EMBEDDING_DIMENSION}")
 
     def index_documents(self) -> None:
         """Index all documents in the source docs directory."""
@@ -102,7 +102,18 @@ class DocumentProcessor:
             }
             
             embedding = self.ollama_client.get_embedding(chunk)
-            if embedding:
+            if embedding and len(embedding) > 0:
+                # Ensure embedding matches the expected dimension
+                if len(embedding) != config.EMBEDDING_DIMENSION:
+                    logger.warning(f"Embedding dimension mismatch: got {len(embedding)}, expected {config.EMBEDDING_DIMENSION}")
+                    logger.warning("Updating config.EMBEDDING_DIMENSION to match actual dimension")
+                    config.EMBEDDING_DIMENSION = len(embedding)
+                    
+                    # Recreate the index with the new dimension
+                    if self.index.ntotal > 0:
+                        logger.warning("Recreating index with new dimension")
+                        self.create_new_index()
+                
                 self.index.add(np.array([embedding], dtype=np.float32))
             else:
                 logger.warning(f"Could not get embedding for chunk: {chunk[:50]}...")
