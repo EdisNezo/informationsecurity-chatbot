@@ -36,14 +36,12 @@ CHUNK_OVERLAP = 50
 MAX_QUESTIONS_PER_SECTION = 2
 CONTEXT_QUESTIONS = [
     "In welcher medizinischen Einrichtung sollen die Schulungen umgesetzt werden?",
-    "Welche spezifischen Bedrohungen sind für Ihre Einrichtung besonders relevant?",
     "Gibt es spezifische Personengruppen, die zu berücksichtigen sind?",
     "Welche Vorkenntnisse haben die Teilnehmer im Bereich Informationssicherheit?",
     "Wie lang darf die Schulung maximal sein?",
-    "Gibt es besondere regulatorische Anforderungen, die berücksichtigt werden müssen?",
+    "Welche spezifischen Bedrohungen sind für Ihre Einrichtung besonders relevant?",
     "Welche sensiblen Daten werden in Ihrer Einrichtung verarbeitet?",
     "Gab es in der Vergangenheit bereits Sicherheitsvorfälle und welcher Art waren diese?",
-    "Welche technischen Sicherheitsmaßnahmen sind bereits implementiert?",
     "Wie sieht der typische Arbeitsalltag der Mitarbeiter in Bezug auf IT-Systeme aus?"
 ]
 
