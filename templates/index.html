@@ -95,6 +95,133 @@
         margin-top: 1rem;
         display: none;
       }
+      /* New styles for system status components */
+      .system-status {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        margin-bottom: 1rem;
+      }
+      .status-indicator {
+        display: flex;
+        align-items: center;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .status-dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        margin-right: 6px;
+        display: inline-block;
+      }
+      .status-online {
+        background-color: #d1fae5;
+        color: #065f46;
+        border: 1px solid #6ee7b7;
+      }
+      .status-online .status-dot {
+        background-color: #10b981;
+      }
+      .status-offline {
+        background-color: #fee2e2;
+        color: #991b1b;
+        border: 1px solid #fca5a5;
+      }
+      .status-offline .status-dot {
+        background-color: #ef4444;
+      }
+      .status-loading .status-dot {
+        background-color: #a1a1aa;
+        animation: pulse 1.5s infinite;
+      }
+      .status-loading {
+        background-color: #f3f4f6;
+        color: #4b5563;
+        border: 1px solid #d1d5db;
+      }
+      @keyframes pulse {
+        0% {
+          opacity: 0.5;
+        }
+        50% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0.5;
+        }
+      }
+      .reindex-button {
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        background-color: #dbeafe;
+        color: #1e40af;
+        border: 1px solid #93c5fd;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        font-weight: 500;
+      }
+      .reindex-button:hover {
+        background-color: #bfdbfe;
+      }
+      .reindex-button:disabled {
+        background-color: #f3f4f6;
+        color: #9ca3af;
+        border-color: #d1d5db;
+        cursor: not-allowed;
+      }
+      .reindex-button .loading {
+        width: 14px;
+        height: 14px;
+        margin-left: 8px;
+      }
+      .toast-container {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1000;
+      }
+      .toast {
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        padding: 1rem;
+        margin-bottom: 10px;
+        max-width: 350px;
+        display: flex;
+        align-items: center;
+        animation: slideIn 0.3s forwards;
+      }
+      .toast.success {
+        border-left: 4px solid #10b981;
+      }
+      .toast.error {
+        border-left: 4px solid #ef4444;
+      }
+      .toast-message {
+        flex-grow: 1;
+        margin-left: 10px;
+      }
+      .toast-close {
+        cursor: pointer;
+        padding: 5px;
+        color: #6b7280;
+      }
+      @keyframes slideIn {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
     </style>
   </head>
   <body>
@@ -105,6 +232,34 @@
           Erstellen Sie maßgeschneiderte Schulungsskripte für
           Informationssicherheit im Gesundheitswesen
         </p>
+
+        <!-- New system status components -->
+        <div class="system-status">
+          <div id="llmStatus" class="status-indicator status-loading">
+            <span class="status-dot"></span>
+            <span class="status-text">LLM Status wird geprüft...</span>
+          </div>
+
+          <button id="reindexButton" class="reindex-button" disabled>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="currentColor"
+              class="bi bi-arrow-repeat me-2"
+              viewBox="0 0 16 16"
+            >
+              <path
+                d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"
+              />
+              <path
+                fill-rule="evenodd"
+                d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"
+              />
+            </svg>
+            Dokumente neu indexieren
+          </button>
+        </div>
       </div>
 
       <div class="chat-container">
@@ -151,6 +306,9 @@
       </div>
     </div>
 
+    <!-- Toast container for notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
     <script>
       const chatMessages = document.getElementById("chatMessages");
       const userInput = document.getElementById("userInput");
@@ -163,16 +321,151 @@
       const progressTime = document.getElementById("progressTime");
       const errorMessage = document.getElementById("errorMessage");
 
+      // New system status components
+      const llmStatus = document.getElementById("llmStatus");
+      const reindexButton = document.getElementById("reindexButton");
+      const toastContainer = document.getElementById("toastContainer");
+
       let conversationId = null;
       let generatingScript = false;
       let scriptGenerationStartTime = null;
       let checkIntervalId = null;
       let errorCount = 0;
+      let systemStatusCheckInterval = null;
 
-      // Initialize the conversation
+      // Initialize the conversation and check system status
       window.onload = function () {
         startConversation();
+        checkSystemStatus();
+
+        // Set up periodic status checks (every 60 seconds)
+        systemStatusCheckInterval = setInterval(checkSystemStatus, 60000);
       };
+
+      // Check system status
+      function checkSystemStatus() {
+        // Update LLM status indicator to loading state
+        updateLlmStatus("loading", "LLM Status wird geprüft...");
+
+        // Disable reindex button during check
+        reindexButton.disabled = true;
+
+        fetch("/api/health")
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(`Network error: ${response.status}`);
+            }
+            return response.json();
+          })
+          .then((data) => {
+            // Update LLM status based on response
+            if (data.status === "ok" && data.ollama_status === "ok") {
+              updateLlmStatus("online", "LLM Online");
+              reindexButton.disabled = false;
+            } else {
+              updateLlmStatus("offline", "LLM Offline");
+              reindexButton.disabled = true;
+            }
+          })
+          .catch((error) => {
+            console.error("Error checking system status:", error);
+            updateLlmStatus("offline", "LLM Status nicht verfügbar");
+            reindexButton.disabled = true;
+          });
+      }
+
+      // Update LLM status indicator
+      function updateLlmStatus(status, message) {
+        // Remove all status classes
+        llmStatus.classList.remove(
+          "status-loading",
+          "status-online",
+          "status-offline"
+        );
+
+        // Add appropriate status class
+        llmStatus.classList.add(`status-${status}`);
+
+        // Update message
+        llmStatus.querySelector(".status-text").textContent = message;
+      }
+
+      // Reindex documents
+      reindexButton.addEventListener("click", function () {
+        // Disable button and show loading state
+        reindexButton.disabled = true;
+        const originalText = reindexButton.innerHTML;
+        reindexButton.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-arrow-repeat me-2" viewBox="0 0 16 16">
+            <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/>
+            <path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/>
+          </svg>
+          Indexierung läuft...
+          <div class="loading"></div>
+        `;
+
+        fetch("/api/reload-documents", {
+          method: "POST",
+        })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(`Network error: ${response.status}`);
+            }
+            return response.json();
+          })
+          .then((data) => {
+            if (data.status === "success") {
+              showToast("Dokumente erfolgreich neu indexiert!", "success");
+            } else {
+              showToast("Fehler bei der Indizierung: " + data.message, "error");
+            }
+          })
+          .catch((error) => {
+            console.error("Error reindexing documents:", error);
+            showToast("Fehler bei der Indizierung: " + error.message, "error");
+          })
+          .finally(() => {
+            // Restore button state after a short delay
+            setTimeout(() => {
+              reindexButton.innerHTML = originalText;
+              reindexButton.disabled = false;
+            }, 1000);
+          });
+      });
+
+      // Show toast notification
+      function showToast(message, type = "success") {
+        const toast = document.createElement("div");
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+          <div class="toast-icon">
+            ${
+              type === "success"
+                ? '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#10b981" viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>'
+                : '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#ef4444" viewBox="0 0 16 16"><path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/><path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/></svg>'
+            }
+          </div>
+          <div class="toast-message">${message}</div>
+          <div class="toast-close">✕</div>
+        `;
+
+        // Add click handler to close button
+        toast
+          .querySelector(".toast-close")
+          .addEventListener("click", function () {
+            toastContainer.removeChild(toast);
+          });
+
+        // Add toast to container
+        toastContainer.appendChild(toast);
+
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+          if (toast.parentNode === toastContainer) {
+            toastContainer.removeChild(toast);
+          }
+        }, 5000);
+      }
 
       // Start a new conversation
       function startConversation() {
@@ -421,11 +714,11 @@
         navigator.clipboard
           .writeText(scriptContent.textContent)
           .then(() => {
-            alert("Skript wurde in die Zwischenablage kopiert!");
+            showToast("Skript wurde in die Zwischenablage kopiert!", "success");
           })
           .catch((err) => {
             console.error("Fehler beim Kopieren: ", err);
-            alert("Fehler beim Kopieren: " + err);
+            showToast("Fehler beim Kopieren: " + err, "error");
           });
       });
 
@@ -442,6 +735,16 @@
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+      });
+
+      // Clean up intervals when page is unloaded
+      window.addEventListener("beforeunload", function () {
+        if (checkIntervalId) {
+          clearInterval(checkIntervalId);
+        }
+        if (systemStatusCheckInterval) {
+          clearInterval(systemStatusCheckInterval);
+        }
       });
     </script>
   </body>
