@@ -168,7 +168,7 @@ class DialogManager:
         logger.debug("Initializing RAG engine for question adaptation")
         rag_engine = RAGEngine()
         prompt = f"""
-        Bitte formuliere die folgende Frage zur Informationssicherheit um, damit sie für Mitarbeiter in {organization_type} 
+        Bitte formuliere die folgende Frage zur Informationssicherheit um, damit sie für Kunden in {organization_type} 
         ohne tiefgreifendes Sicherheitswissen verständlicher wird. Die Frage gehört zum Bereich "{section_title}".
 
         Ursprüngliche Frage: {question}
@@ -181,6 +181,7 @@ class DialogManager:
         2. Konkrete Beispiele aus dem medizinischen Umfeld einbeziehen
         3. Direkt auf die Arbeitssituation der Teilnehmer bezogen sein
         4. Weniger abstrakt und mehr praxisorientiert sein
+        5. Es sollte gesiezt werden, also statt "bei uns" soll ""bei Ihnen" verwendet werden und so weiter.
 
         Gib nur die umformulierte Frage zurück, ohne Erklärungen oder zusätzlichen Text.
         """
